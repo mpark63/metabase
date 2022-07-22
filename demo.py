@@ -43,41 +43,6 @@ def queryForCount(qstring):
     c = c[0]
 
     return c
-
-def group_stacks(dataframes, labels): 
-    n_df = len(dataframes)
-    n_col = len(dataframes[0].columns) 
-    n_ind = len(dataframes[0].index)
-
-    font = {'weight':'normal', 'size':10}
-    plt.rc('font', **font)
-    fwidth = 6.5
-    fheight = 5
-    
-    fig = plt.figure()
-
-    i = 1
-    for df in dataframes: 
-        df = df.sort_values('Strongly agree', ascending=True)
-        ax = fig.add_subplot(1, len(labels), i)
-        # ax = df.plot.barh(stacked=True, figsize=(fwidth, fheight))
-        ax = df.plot(kind="bar", stacked=True, ax=ax, legend=True, grid=False)
-        ax.legend(loc='upper center', bbox_to_anchor=(0.2, -0.08),
-                fancybox=False, shadow=False, ncol=5)
-        ax.spines[:].set_visible(False)
-        ax.yaxis.set_ticks_position('none')
-        ax.set_ylabel("")
-        i += 1
-    h,l = ax.get_legend_handles_labels() # get the handles we want to modify
-    for i in range(0, n_df * n_col, n_col): # len(h) = n_col * n_df
-        for j, pa in enumerate(h[i:i+n_col]):
-            for rect in pa.patches: # for each index
-                rect.set_x(rect.get_x() + 1 / float(n_df + 1) * i / float(n_col))
-                rect.set_hatch("/" * int(i / n_col)) #edited part     
-                rect.set_width(1 / float(n_df + 1))
-    ax.set_xticks((np.arange(0, 2 * n_ind, 2) + 1 / float(n_df + 1)) / 2.)
-    ax.set_xticklabels(labels, rotation = 0)
-    return fig
     
 Qs = {
         'would_recommend_course_to_friend_interested_in_0et0_eng' 
@@ -100,24 +65,26 @@ respDict = {
             'Strongly disagree':'Strongly disagree',
             'Total': 'Total'
             }
+#%% DEMOGRAPHICS ==========================================================
+dictSex = {'col':'sex',
+    'data': {'M':'Male','F':'Female'}
+    }
+
+colList = list(respDict.values())
+rowList = []
+for qText in Qs: 
+    for val in list(dictSex['data'].values()): 
+        rowList.append(qText + " - " + val)
 
 # Query for post-course response by sex 
 for course in courses:
-    dataframes = []
     for qText in Qs: 
-        #%% DEMOGRAPHICS ==========================================================
-        dictSex = {'col':'sex',
-            'data': {'M':'Male','F':'Female'}
-            }
-
         # Query data from the database for this section only
         table = 'v_student_survey'
         courseIDs = courses[course]
         survey = 'Post-Course Student'
         section = 'EN.500.109.01'
 
-        colList = list(respDict.values())
-        rowList = list(dictSex['data'].values())
         dfDem = pd.DataFrame(None,index=rowList,columns=colList)
 
         dfDem.fillna(0, inplace=True)
@@ -138,30 +105,21 @@ for course in courses:
                 )
 
                 nResp = queryForCount(qstring)
-                dfDem[respDict[resp]][dictSex['data'][r]] = nResp
-                dfDem['Total'][dictSex['data'][r]] += nResp
+                dfDem[respDict[resp]][qText + ' - ' + dictSex['data'][r]] = nResp
+                dfDem['Total'][qText + ' - ' + dictSex['data'][r]] += nResp
             
-        dfPerc = pd.DataFrame(None,index=list(rowList),columns=colList)
         for resp in respDict:
             for r in dictSex['data']:
                 if resp == 'Total': 
                     continue 
-                count = dfDem[respDict[resp]][dictSex['data'][r]] 
-                total = dfDem['Total'][dictSex['data'][r]] 
-                dfDem[respDict[resp]][dictSex['data'][r]] = count / total 
-        dfPerc = dfDem.drop('Total', axis=1) # don't show total 
-        
-        dataframes.append(dfPerc)
+                count = dfDem[respDict[resp]][qText + ' - ' + dictSex['data'][r]] 
+                total = dfDem['Total'][qText + ' - ' + dictSex['data'][r]] 
+                dfDem[respDict[resp]][qText + ' - ' + dictSex['data'][r]] = count / total 
+        dfDem.drop('Total', axis=1) # don't show total 
+            
+    print(dfDem)
+
     
-    print(dataframes)
-    print(Qs[qText])
-
-    labels = []
-    for q in list(Qs.values()): 
-        labels.append(q + ' - Male')
-        labels.append(q + ' - Female')
-
-    fig = group_stacks(dataframes, labels)
     #   Save
     fname = course+'_general'
     plt.savefig('tex/fig/'+fname+'.png', bbox_inches='tight', dpi=300)
