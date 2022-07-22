@@ -14,6 +14,7 @@ courses = {
 #%% HEADER AND FUNCTIONS ######################################################
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 import requests
 import os
 from pathlib import Path
@@ -43,6 +44,41 @@ def queryForCount(qstring):
 
     return c
 
+def group_stacks(dataframes, labels): 
+    n_df = len(dataframes)
+    n_col = len(dataframes[0].columns) 
+    n_ind = len(dataframes[0].index)
+
+    font = {'weight':'normal', 'size':10}
+    plt.rc('font', **font)
+    fwidth = 6.5
+    fheight = 5
+    
+    fig = plt.figure()
+
+    i = 1
+    for df in dataframes: 
+        df = df.sort_values('Strongly agree', ascending=True)
+        ax = fig.add_subplot(1, len(labels), i)
+        # ax = df.plot.barh(stacked=True, figsize=(fwidth, fheight))
+        ax = df.plot(kind="bar", stacked=True, ax=ax, legend=True, grid=False)
+        ax.legend(loc='upper center', bbox_to_anchor=(0.2, -0.08),
+                fancybox=False, shadow=False, ncol=5)
+        ax.spines[:].set_visible(False)
+        ax.yaxis.set_ticks_position('none')
+        ax.set_ylabel("")
+        i += 1
+    h,l = ax.get_legend_handles_labels() # get the handles we want to modify
+    for i in range(0, n_df * n_col, n_col): # len(h) = n_col * n_df
+        for j, pa in enumerate(h[i:i+n_col]):
+            for rect in pa.patches: # for each index
+                rect.set_x(rect.get_x() + 1 / float(n_df + 1) * i / float(n_col))
+                rect.set_hatch("/" * int(i / n_col)) #edited part     
+                rect.set_width(1 / float(n_df + 1))
+    ax.set_xticks((np.arange(0, 2 * n_ind, 2) + 1 / float(n_df + 1)) / 2.)
+    ax.set_xticklabels(labels, rotation = 0)
+    return fig
+    
 Qs = {
         'would_recommend_course_to_friend_interested_in_0et0_eng' 
             : 'Would recommend course to friend interested in engineering', 
@@ -120,22 +156,12 @@ for course in courses:
     print(dataframes)
     print(Qs[qText])
 
-    df = dfPerc
-    # Plot data
-    #   Pre-formatting
-    font = {'weight':'normal', 'size':10}
-    plt.rc('font', **font)
-    fwidth = 6.5
-    fheight = 5
-    #   Plot and modify
-    df = df.sort_values('Strongly agree', ascending=True)
-    ax = df.plot.barh(stacked=True, figsize=(fwidth, fheight))
-    ax.legend(loc='upper center', bbox_to_anchor=(0.2, -0.08),
-                fancybox=False, shadow=False, ncol=5)
-    ax.spines[:].set_visible(False)
-    ax.yaxis.set_ticks_position('none')
-    ax.set_ylabel("")
+    labels = []
+    for q in list(Qs.values()): 
+        labels.append(q + ' - Male')
+        labels.append(q + ' - Female')
 
+    fig = group_stacks(dataframes, labels)
     #   Save
     fname = course+'_general'
     plt.savefig('tex/fig/'+fname+'.png', bbox_inches='tight', dpi=300)
