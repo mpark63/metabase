@@ -89,6 +89,37 @@ for course in courses:
             #dfDem['Neutral']['Male']
             dfDem[respDict[resp]][dictSex['data'][r]] = nResp
             dfDem['Total'][dictSex['data'][r]] += nResp
-
+    
     print(qText)
     print(dfDem)
+
+    dfPerc = pd.DataFrame(None,index=list(dictSex['data'].values()),columns=colList)
+    for resp in respDict:
+        for r in dictSex['data']:
+            if resp == 'Total': 
+                continue 
+            count = dfDem[respDict[resp]][dictSex['data'][r]] 
+            total = dfDem['Total'][dictSex['data'][r]] 
+            dfDem[respDict[resp]][dictSex['data'][r]] = count / total 
+    dfPerc = dfDem.drop('Total', axis=1) # don't show total 
+
+    df = dfPerc
+    # Plot data
+    #   Pre-formatting
+    font = {'weight':'normal', 'size':10}
+    plt.rc('font', **font)
+    fwidth = 6.5
+    fheight = 5
+    #   Plot and modify
+    df = df.sort_values('Strongly agree', ascending=True)
+    ax = df.plot.barh(stacked=True, figsize=(fwidth, fheight))
+    ax.legend(loc='upper center', bbox_to_anchor=(0.2, -0.08),
+                fancybox=False, shadow=False, ncol=5)
+    ax.spines[:].set_visible(False)
+    ax.yaxis.set_ticks_position('none')
+    ax.set_ylabel("")
+
+    #   Save
+    fname = course+'_general'
+    plt.savefig('tex/fig/'+fname+'.png', bbox_inches='tight', dpi=300)
+    plt.show()
