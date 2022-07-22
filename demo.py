@@ -43,65 +43,82 @@ def queryForCount(qstring):
 
     return c
 
-# Query for post-course response by sex 
-for course in courses:
-    #%% DEMOGRAPHICS ==========================================================
-    dictSex = {'col':'sex',
-               'data': {'M':'Male','F':'Female'}
+Qs = {
+        'would_recommend_course_to_friend_interested_in_0et0_eng' 
+            : 'Would recommend course to friend interested in engineering', 
+        # 'an_engineering_degree_will_guarantee_me_a_job_when_i_graduate' :
+        #     'An engineering_degree will guarantee me a job when I graduate',
+        # 'engineers_are_well_paid':
+        #     'Engineers are well paid',
+        # 'engineering_plays_an_important_role_in_solving_societys_problems':
+        #     'Engineering plays an important role in solving societys problems',
+        # 'i_like_to_solve_problems_and/or_figure_out_how_things_work':
+        #     'I like to solve problems and/or figure out how things work'
+    }
+
+respDict = {
+            'Strongly agree':'Strongly agree',
+            'Agree':'Agree',
+            'Neither agree nor disagree':'Neutral',
+            'Disagree':'Disagree',
+            'Strongly disagree':'Strongly disagree',
+            'Total': 'Total'
             }
 
-    # Query data from the database for this section only
-    table = 'v_student_survey'
-    courseIDs = courses[course]
-    survey = 'Post-Course Student'
-    section = 'EN.500.109.01'
+# Query for post-course response by sex 
+for course in courses:
+    dataframes = []
+    for qText in Qs: 
+        #%% DEMOGRAPHICS ==========================================================
+        dictSex = {'col':'sex',
+            'data': {'M':'Male','F':'Female'}
+            }
 
-    respDict = {
-        'Strongly agree':'Strongly agree',
-        'Agree':'Agree',
-        'Neither agree nor disagree':'Neutral',
-        'Disagree':'Disagree',
-        'Strongly disagree':'Strongly disagree',
-        'Total': 'Total'
-        }
-    colList = list(respDict.values())
-    dfDem = pd.DataFrame(None,index=list(dictSex['data'].values()),columns=colList)
+        # Query data from the database for this section only
+        table = 'v_student_survey'
+        courseIDs = courses[course]
+        survey = 'Post-Course Student'
+        section = 'EN.500.109.01'
 
-    qText = 'would_recommend_course_to_friend_interested_in_0et0_eng'
-    for r in dictSex['data']: 
-        dfDem['Total'][dictSex['data'][r]] = 0
-    for resp in respDict:
-        for r in dictSex['data']:
-            if resp == 'Total': 
-                continue 
-            qstring = (
-                "SELECT COUNT(v_student_survey.response)"
-            + " FROM " + table
-            + " INNER JOIN v_student_demographics ON v_student_survey.email_id=v_student_demographics.email_id"
-            + " WHERE v_student_survey.course_id IN " + courses[course]
-            + " AND v_student_survey.details = '" + survey + "'"
-            + " AND v_student_survey.question = '" + qText + "'"
-            + " AND v_student_survey.response = '" + resp + "'"
-            + " AND v_student_demographics." + dictSex['col'] + " = '" + r + "'"
-            )
+        colList = list(respDict.values())
+        rowList = list(dictSex['data'].values())
+        dfDem = pd.DataFrame(None,index=rowList,columns=colList)
 
-            nResp = queryForCount(qstring)
-            #dfDem['Neutral']['Male']
-            dfDem[respDict[resp]][dictSex['data'][r]] = nResp
-            dfDem['Total'][dictSex['data'][r]] += nResp
+        dfDem.fillna(0, inplace=True)
+
+        for resp in respDict:
+            for r in dictSex['data']:
+                if resp == 'Total': 
+                    continue 
+                qstring = (
+                    "SELECT COUNT(v_student_survey.response)"
+                + " FROM " + table
+                + " INNER JOIN v_student_demographics ON v_student_survey.email_id=v_student_demographics.email_id"
+                + " WHERE v_student_survey.course_id IN " + courses[course]
+                + " AND v_student_survey.details = '" + survey + "'"
+                + " AND v_student_survey.question = '" + qText + "'"
+                + " AND v_student_survey.response = '" + resp + "'"
+                + " AND v_student_demographics." + dictSex['col'] + " = '" + r + "'"
+                )
+
+                nResp = queryForCount(qstring)
+                dfDem[respDict[resp]][dictSex['data'][r]] = nResp
+                dfDem['Total'][dictSex['data'][r]] += nResp
+            
+        dfPerc = pd.DataFrame(None,index=list(rowList),columns=colList)
+        for resp in respDict:
+            for r in dictSex['data']:
+                if resp == 'Total': 
+                    continue 
+                count = dfDem[respDict[resp]][dictSex['data'][r]] 
+                total = dfDem['Total'][dictSex['data'][r]] 
+                dfDem[respDict[resp]][dictSex['data'][r]] = count / total 
+        dfPerc = dfDem.drop('Total', axis=1) # don't show total 
+        
+        dataframes.append(dfPerc)
     
-    print(qText)
-    print(dfDem)
-
-    dfPerc = pd.DataFrame(None,index=list(dictSex['data'].values()),columns=colList)
-    for resp in respDict:
-        for r in dictSex['data']:
-            if resp == 'Total': 
-                continue 
-            count = dfDem[respDict[resp]][dictSex['data'][r]] 
-            total = dfDem['Total'][dictSex['data'][r]] 
-            dfDem[respDict[resp]][dictSex['data'][r]] = count / total 
-    dfPerc = dfDem.drop('Total', axis=1) # don't show total 
+    print(dataframes)
+    print(Qs[qText])
 
     df = dfPerc
     # Plot data
