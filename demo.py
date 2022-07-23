@@ -2,7 +2,6 @@
 # LOGIN and DEFINE SECTION
 #########################################################################
 # Run _LOGIN.py and copy the token string here:
-token = 'df5be32f-7822-4204-b6a2-443084c33502'    
 
 # Course name to course ID 
 # 14 for EEI SU21, 15 for BMEI 12wk, 16 for BMEI T1, 17 for BMEI T2 (all SU21)
@@ -19,6 +18,8 @@ import requests
 import os
 from pathlib import Path
 import re
+from secret import token 
+pd.options.mode.chained_assignment = None  # default='warn'
 
 endpoint = 'https://metabase.di.inciter.io'  
 database = 14   # Database JHU-WSE
@@ -32,7 +33,7 @@ vSD = 1     # value for "strongly disagree" (SD)
 
 #%% Function queryForCount =======================================================
 def queryForCount(qstring):
-    print(qstring)
+    # print(qstring)
     query= {"database": database, "type": "native", "native": {"query": qstring}}
     res = requests.post(endpoint+'/api/dataset',
               headers = {'Content-Type': 'application/json',
@@ -60,6 +61,14 @@ respDict = {
             'Strongly disagree':'Strongly disagree',
             'Total': 'Total'
             }
+
+respValue = {
+    'Strongly agree': 5,
+    'Agree': 4,
+    'Neutral': 3,
+    'Disagree': 2,
+    'Strongly disagree': 1,
+}
 
 #%% DEMOGRAPHICS ==========================================================
 dictSex = {'col':'sex',
@@ -105,13 +114,16 @@ for course in courses:
     f.write(r"\begin{document} \maketitle"+"\n")
     f.write(r"\setcounter{tocdepth}{1} \tableofcontents"+"\n")
     f.write("\n" + r"\noindent ")
+    f.write(r"\pagebreak"+"\n")
 
     # for each question 
     for q in Qs: 
         qText = Qs[q]
         f.write(r"\section{"+qText+"}"+"\n")
+        print("Query for question: " + qText)
     
         for demo in demographics: 
+            print("\tdemographic: " + demo['col'].replace('_', ' '))
             colList = list(respDict.values())
             rowList = []    
             for var in demo['data']:
@@ -147,7 +159,7 @@ for course in courses:
                         total += nResp
                     # update dfPerc based on dfDem
                     for resp in respDict:
-                        count = dfDem[respDict[resp]][survey + ' - ' + demo['data'][var]] 
+                        count = dfDem[respDict[resp]][survey + ' - ' + demo['data'][var]]
                         dfPerc[respDict[resp]][survey + ' - ' + demo['data'][var]] = count / total 
             
             # Plot data
@@ -167,10 +179,30 @@ for course in courses:
             #   Save
             fname = q+'___'+demo['col'].replace('_', ' ')
             plt.savefig('tex/fig/'+fname+'.png', bbox_inches='tight', dpi=300)
-            f.write(r"\subsection{"+demo['col']+"}"+"\n")
+            f.write(r"\subsection{"+demo['col'].replace('_', ' ')+"}"+"\n")
             f.write(r"\includegraphics[width="+str(fwidth)+"in]{fig/"+fname+r".png}\\"+"\n")
+
+            # Table of statistics 
+            colList = ['Mean', 'Agrees']
+            dfStats = pd.DataFrame(None,index=rowList,columns=colList)
+            for row in rowList: 
+                sum = 0
+                total = 0
+                # Calculate mean 
+                for col in list(respDict.values()): 
+                    if col == 'Total': 
+                        continue; 
+                    sum += dfDem[col][row] * respValue[col]
+                    total += dfDem[col][row]
+                dfStats['Mean'][row] = str(round((sum / total), 2))
+                # Calculate agrees 
+                agrees = dfDem['Strongly agree'][row] + dfDem['Agree'][row]
+                dfStats['Agrees'][row] = agrees
+            
+            f.write(dfStats.style.to_latex(position='!h',column_format='|r|cc|'))
 
     #%% WRAP-UP REPORT ========================================================
     f.write("\end{document}")
     f.close()
     os.system("pdflatex -output-directory=tex -interaction=batchmode "+latexFileName)
+    print(latexFileName + " has been created!")
