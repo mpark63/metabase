@@ -155,7 +155,7 @@ for course in courses:
             font = {'weight':'normal', 'size':10}
             plt.rc('font', **font)
             fwidth = 6.5
-            fheight = 5
+            fheight = 4.5
             #   Plot and modify
             ax = dfPerc.plot.barh(stacked=True, figsize=(fwidth, fheight))
             ax.legend(loc='upper center', bbox_to_anchor=(0.2, -0.08),
