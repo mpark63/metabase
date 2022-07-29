@@ -59,7 +59,6 @@ respDict = {
             'Neither agree nor disagree':'Neutral',
             'Disagree':'Disagree',
             'Strongly disagree':'Strongly disagree',
-            'Total': 'Total'
             }
 
 respValue = {
@@ -106,6 +105,7 @@ for course in courses:
     f.write(r"\usepackage[top=1in, bottom=1in, left=1in, right=1in, "+
             "marginparsep=0.15in]{geometry}")
     f.write(r"\usepackage{booktabs}" + "\n")
+    f.write(r"\usepackage{ragged2e}" + "\n")
     f.write(r"\usepackage{graphicx}" + "\n")
     f.write(r"\usepackage{caption}" + "\n")
     f.write(r"\title{" + course + r" Summer 2021}")
@@ -114,6 +114,7 @@ for course in courses:
     f.write(r"\begin{document} \maketitle"+"\n")
     f.write(r"\setcounter{tocdepth}{1} \tableofcontents"+"\n")
     f.write("\n" + r"\noindent ")
+    f.write(r"\begin{FlushLeft}" + "\n")
     f.write(r"\pagebreak"+"\n")
 
     # for each question 
@@ -124,6 +125,11 @@ for course in courses:
     
         for demo in demographics: 
             print("\tdemographic: " + demo['col'].replace('_', ' '))
+            f.write(r'\linebreak' + "\n")
+            f.write(r"\subsection{"+demo['col'].replace('_', ' ')+"}"+"\n")
+            f.write(r'\linebreak' + "\n")
+            f.write(r'' + "Demographics with less than 5 responses are not shown."+"\n")
+            f.write(r'\linebreak' + "\n")
             colList = list(respDict.values())
             rowList = []    
             for var in demo['data']:
@@ -134,16 +140,12 @@ for course in courses:
             dfDem.fillna(0, inplace=True)
             # initialize percentage values 
             dfPerc = pd.DataFrame(None,index=rowList,columns=colList)
-            dfPerc.drop('Total', axis=1) # don't show total 
             dfPerc.fillna(0, inplace=True)
-
+        
             for survey in ['Pre-Course Student', 'Post-Course Student']: 
                 for var in demo['data']:
-                    total = 0
+                    total = 0 # number of responses for demographic 
                     for resp in respDict:
-                        if resp == 'Total': 
-                            continue 
-                        
                         qstring = (
                             "SELECT COUNT(v_student_survey.response)"
                         + " FROM " + table
@@ -157,19 +159,29 @@ for course in courses:
                         nResp = queryForCount(qstring)
                         dfDem[respDict[resp]][survey + ' - ' + demo['data'][var]] = nResp
                         total += nResp
+                    # drop less than 5 responses 
+                    if total < 5: 
+                        dfPerc.drop(index=survey + " - " + demo['data'][var], inplace=True)
+                        f.write(r'' + survey + " - " + demo['data'][var] + " not shown\n" + "\n")
+                        f.write(r'\linebreak' + "\n")
+                        continue; 
                     # update dfPerc based on dfDem
                     for resp in respDict:
                         count = dfDem[respDict[resp]][survey + ' - ' + demo['data'][var]]
                         dfPerc[respDict[resp]][survey + ' - ' + demo['data'][var]] = count / total 
-            
+
             # Plot data
             #   Pre-formatting
             font = {'weight':'normal', 'size':10}
             plt.rc('font', **font)
             fwidth = 6.5
             fheight = 4.5
+            print(dfPerc)
+            # dfPerc.sort_index(axis=0, ascending=False, inplace=True)
             #   Plot and modify
-            ax = dfPerc.plot.barh(stacked=True, figsize=(fwidth, fheight))
+            ax = dfPerc.plot(kind='barh', stacked=True, figsize=(fwidth, fheight))
+
+            # ax = dfPerc.plot.barh(stacked=True, figsize=(fwidth, fheight))
             ax.legend(loc='upper center', bbox_to_anchor=(0.2, -0.08),
                         fancybox=False, shadow=False, ncol=5)
             ax.spines[:].set_visible(False)
@@ -179,8 +191,9 @@ for course in courses:
             #   Save
             fname = q+'___'+demo['col'].replace('_', ' ')
             plt.savefig('tex/fig/'+fname+'.png', bbox_inches='tight', dpi=300)
-            f.write(r"\subsection{"+demo['col'].replace('_', ' ')+"}"+"\n")
+            f.write(r'\vspace{1cm}' + "\n")
             f.write(r"\includegraphics[width="+str(fwidth)+"in]{fig/"+fname+r".png}\\"+"\n")
+            f.write(r'\vspace{1cm}' + "\n")
 
             # Table of statistics 
             colList = ['Mean', 'Agrees']
@@ -190,19 +203,18 @@ for course in courses:
                 total = 0
                 # Calculate mean 
                 for col in list(respDict.values()): 
-                    if col == 'Total': 
-                        continue; 
                     sum += dfDem[col][row] * respValue[col]
                     total += dfDem[col][row]
                 dfStats['Mean'][row] = str(round((sum / total), 2))
                 # Calculate agrees 
                 agrees = dfDem['Strongly agree'][row] + dfDem['Agree'][row]
-                dfStats['Agrees'][row] = agrees
-            
-            f.write(dfStats.style.to_latex(position='!h',column_format='|r|cc|'))
+                dfStats['Agrees'][row] = str(round((agrees / total * 100), 2))
+            f.write(dfStats.style.to_latex(position='!h', position_float='centering', column_format='|r|cc|', caption="strongly agree=5, agree=4, neutral=3, disagree=2, and strongly disagree=1"))
+            f.write(r"\pagebreak"+"\n")
 
     #%% WRAP-UP REPORT ========================================================
-    f.write("\end{document}")
+    f.write(r"\end{FlushLeft}" + "\n")
+    f.write(r"\end{document}")
     f.close()
     os.system("pdflatex -output-directory=tex -interaction=batchmode "+latexFileName)
     print(latexFileName + " has been created!")
